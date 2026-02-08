@@ -1,0 +1,160 @@
+#Google Cloud AI aims to improve the reliability of large-scale computing infrastructure by
+# predicting server CPU temperature under varying workloads. Using parameters such as CPU utilization, 
+# memory usage, clock speed, ambient temperature, voltage, and current load, develop a supervised machine
+# learning regression model to estimate server temperature. The model should help in proactive cooling management and failure prevention
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+# ===============================
+# 1. Load Dataset
+# ===============================
+server_data = pd.read_csv('/Users/devanshbansal/Downloads/unclean_cpu_metrics.csv')
+# ===============================
+# 2. Data Cleaning & Preprocessing through EDA
+# ===============================
+# first we will check for null values in our dataset
+print(server_data.isnull().sum())
+server_data = server_data.drop_duplicates()
+server_data = server_data.dropna()
+print(server_data.isnull().sum())
+
+
+# Convert numeric columns safely
+numeric_cols = [
+    'CPU Usage (%)',
+    'CPU Temperature (°C)',
+    'Clock Speed (GHz)',
+    'Cache Miss Rate (%)',
+    'Power Consumption (W)'
+]
+
+for col in numeric_cols:
+    server_data[col] = pd.to_numeric(server_data[col], errors='coerce')
+
+# Remove rows that had invalid values
+server_data = server_data.dropna()
+
+# ===============================
+# 3. Exploratory Data Analysis (EDA)
+# ===============================
+# -------- EDA 1: Distribution of CPU Temperature  --------
+plt.figure()
+
+plt.scatter(
+    server_data['CPU Temperature (°C)'],
+    server_data['CPU Usage (%)'],
+    alpha=0.4
+)
+
+# Trend line
+z = np.polyfit(
+    server_data['CPU Temperature (°C)'],
+    server_data['CPU Usage (%)'],
+    1
+)
+p = np.poly1d(z)
+plt.plot(
+    server_data['CPU Temperature (°C)'],
+    p(server_data['CPU Temperature (°C)'])
+)
+
+plt.xlabel('CPU Temperature (°C)')
+plt.ylabel('CPU Usage (%)')
+plt.title('CPU Usage vs CPU Temperature')
+plt.show()
+
+
+plt.figure()
+plt.hist(server_data['CPU Temperature (°C)'], bins=30)
+plt.xlabel('CPU Temperature (°C)')
+plt.ylabel('Frequency')
+plt.title('Distribution of CPU Temperature')
+plt.show()
+
+
+plt.figure()
+plt.scatter(
+    server_data['Power Consumption (W)'],
+    server_data['CPU Temperature (°C)'],
+    alpha=0.4
+)
+plt.xlabel('Power Consumption (W)')
+plt.ylabel('CPU Temperature (°C)')
+plt.title('Power Consumption vs CPU Temperature')
+plt.show()
+
+
+
+# ===============================
+# 4. Random Forest Regression
+# ===============================
+
+# -------- Feature Selection --------
+X = server_data[
+    ['CPU Usage (%)',
+     'Clock Speed (GHz)',
+     'Cache Miss Rate (%)',
+     'Power Consumption (W)']
+]
+
+y = server_data['CPU Temperature (°C)']
+
+# -------- Train/Test Split --------
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.2,
+    random_state=42
+)
+
+# -------- Model Initialization --------
+rf_model = RandomForestRegressor(
+    n_estimators=100,     # number of trees
+    random_state=42
+)
+
+# -------- Training --------
+rf_model.fit(X_train, y_train)
+
+# -------- Prediction --------
+y_pred = rf_model.predict(X_test)
+
+# -------- Evaluation --------
+mae = mean_absolute_error(y_test, y_pred)
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+
+print("Random Forest MAE:", mae)
+print("Random Forest RMSE:", rmse)
+
+# ===============================
+# 5. User Input Prediction
+# ===============================
+
+print("\nEnter system metrics to predict CPU temperature")
+
+usage = float(input("CPU Usage (%): "))
+clock = float(input("Clock Speed (GHz): "))
+cache = float(input("Cache Miss Rate (%): "))
+power = float(input("Power Consumption (W): "))
+
+# Prepare data for model
+user_input = pd.DataFrame(
+    [[usage, clock, cache, power]],
+    columns=[
+        'CPU Usage (%)',
+        'Clock Speed (GHz)',
+        'Cache Miss Rate (%)',
+        'Power Consumption (W)'
+    ]
+)
+
+
+# Predict
+predicted_temp = rf_model.predict(user_input)
+
+# Show result
+print("\nPredicted CPU Temperature:",
+      round(predicted_temp[0],2), "°C")
