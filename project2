@@ -1,0 +1,173 @@
+# A recommendation system sends out suggestions to users through a filtering process based on 
+# A content-based recommendation system that suggests movies
+# based on a user's own viewing history and genre preferences.
+
+import pandas as pd
+import numpy as np 
+import matplotlib.pyplot as plt
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+#reading the data of our file
+"""
+Dataset: MovieLens-style dataset
+Source: Kaggle
+Description:
+- Movie_Name: title of the movie
+- Genre: pipe-separated genres
+- Rating: user rating (1–5)
+"""
+
+moviedata = pd.read_csv('/Users/devanshbansal/Downloads/movies_dataset.csv')
+#using EDP to find out the values where cleaning is required
+print(moviedata.isnull().sum())
+# Ratings are user-generated; mean imputation used to
+# preserve dataset size for EDA and baseline recommendations
+moviedata["Genre"] = moviedata["Genre"].fillna("unknown")
+moviedata['Rating'] = moviedata['Rating'].fillna(moviedata['Rating'].mean())
+moviedata["Genre"] = (
+    moviedata["Genre"]
+    .str.lower()        # drama, action
+    .str.strip()        # remove leading/trailing spaces
+    .str.replace(" ", "")  # remove spaces inside
+)
+# to remove the movie with duplicate names
+moviedata = moviedata.drop_duplicates(subset=["Movie_Name"])
+#no cleaning required as there are no null values
+# -------- EDA: Number of movies per genre --------
+
+# Split genres and explode into separate rows
+genre_df = moviedata.copy()
+genre_df["Genre"] = genre_df["Genre"].str.split("|")
+genre_df = genre_df.explode("Genre")
+
+# Count movies per genre
+genre_counts = genre_df["Genre"].value_counts()
+plt.figure(figsize=(10, 5))
+genre_counts.plot(kind="bar")
+plt.title("Number of Movies per Genre")
+plt.xlabel("Genre")
+plt.ylabel("Number of Movies")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+# -------- EDA: Number of movies per rating --------
+rating_counts = (
+    moviedata["Rating"]
+    .round(1)
+    .value_counts()
+    .sort_index()
+)
+plt.figure(figsize=(8, 5))
+rating_counts.plot(kind="bar")
+plt.title("Number of Movies per Rating")
+plt.xlabel("Rating")
+plt.ylabel("Number of Movies")
+plt.xticks(rotation=0)
+plt.tight_layout()
+plt.show()
+# -------- Recommendation System --------
+
+#dropping the unnamed column as it is not required for our analysis
+moviedata = moviedata.drop(columns=["Unnamed: 0"], errors="ignore")
+#setting our user_id for which we want recommendations
+user_id = 1
+# Extract user interaction history
+user_data = moviedata[moviedata["User_Id"] == user_id]
+#makiung sure the data is sorted by the rating and giuven which has rating greater than or equal to 4 and setting them equal to the 
+liked_movies = user_data[user_data["Rating"] >= 4]
+# -------- Vectorize genres using TF-IDF --------
+tfidf = TfidfVectorizer(token_pattern=r"[^|]+")
+genre_matrix = tfidf.fit_transform(moviedata["Genre"])
+# Handle case where user has no highly-rated movies
+if liked_movies.empty:
+    print("No highly-rated movies found for this user. Using global genre profile.")
+    user_profile = np.asarray(genre_matrix.mean(axis=0))
+else:
+    liked_indices = liked_movies.index
+    user_profile = np.asarray(genre_matrix[liked_indices].mean(axis=0))
+
+# Ensure correct shape for cosine_similarity (1, n_features)
+user_profile = user_profile.reshape(1, -1)
+
+
+similarity_scores = cosine_similarity(
+    user_profile,
+    genre_matrix
+).flatten()
+
+moviedata["genre_similarity"] = similarity_scores
+moviedata["rating_norm"] = moviedata["Rating"] / 5
+moviedata["final_score"] = (
+    0.7 * moviedata["genre_similarity"] +
+    0.3 * moviedata["rating_norm"]
+)
+recommendations = (
+    moviedata[
+        ~moviedata["Movie_Name"].isin(liked_movies["Movie_Name"])
+    ]
+    .sort_values(by="final_score", ascending=False)
+    .head(10)
+)
+
+print(recommendations[["Movie_Name", "Genre", "Rating", "final_score"]])
+
+
+
+
+
+
+def recommend_movies_by_genre(moviedata, tfidf, genre_matrix, top_n=10):
+
+    df = moviedata.copy()
+
+    user_genres_input = input(
+        "Enter preferred genres (comma-separated, e.g. action,drama,comedy): "
+    )
+
+    user_genres = (
+        user_genres_input
+        .lower()
+        .replace(" ", "")
+        .split(",")
+    )
+
+    user_genre_text = "|".join(user_genres)
+    user_vector = tfidf.transform([user_genre_text])
+
+    similarity_scores = cosine_similarity(
+        user_vector,
+        genre_matrix
+    ).flatten()
+
+    df["genre_similarity"] = similarity_scores
+    df["rating_norm"] = df["Rating"] / 5
+
+    df["final_score"] = (
+        0.7 * df["genre_similarity"] +
+        0.3 * df["rating_norm"]
+    )
+
+    recommendations = (
+        df
+        .sort_values(by="final_score", ascending=False)
+        .head(top_n)
+    )
+
+    print("\n🎬 Genre-Based (User Input) Recommendations:\n")
+    print(
+        recommendations[
+            ["Movie_Name", "Genre", "Rating", "final_score"]
+        ].reset_index(drop=True)
+    )
+top_n = int(input("How many movie recommendations do you want? "))
+recommend_movies_by_genre(
+    moviedata=moviedata,
+    tfidf=tfidf,
+    genre_matrix=genre_matrix,
+    top_n=top_n
+)
+
+
+
