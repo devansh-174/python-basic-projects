@@ -19,12 +19,14 @@ Description:
 """
 
 moviedata = pd.read_csv('/Users/devanshbansal/Downloads/movies_dataset.csv')
-#using EDP to find out the values where cleaning is required
+#using EDA to find out the values where cleaning is required
 print(moviedata.isnull().sum())
 # Ratings are user-generated; mean imputation used to
 # preserve dataset size for EDA and baseline recommendations
 moviedata["Genre"] = moviedata["Genre"].fillna("unknown")
+print("Filled missing genres with 'unknown'")
 moviedata['Rating'] = moviedata['Rating'].fillna(moviedata['Rating'].mean())
+print("Filled missing rating with mean value")
 moviedata["Genre"] = (
     moviedata["Genre"]
     .str.lower()        # drama, action
@@ -75,7 +77,7 @@ moviedata = moviedata.drop(columns=["Unnamed: 0"], errors="ignore")
 user_id = 1
 # Extract user interaction history
 user_data = moviedata[moviedata["User_Id"] == user_id]
-#makiung sure the data is sorted by the rating and giuven which has rating greater than or equal to 4 and setting them equal to the 
+#making sure the data is sorted by the rating and given which has rating greater than or equal to 4 and setting them equal to the 
 liked_movies = user_data[user_data["Rating"] >= 4]
 # -------- Vectorize genres using TF-IDF --------
 tfidf = TfidfVectorizer(token_pattern=r"[^|]+")
@@ -155,13 +157,16 @@ def recommend_movies_by_genre(moviedata, tfidf, genre_matrix, top_n=10):
         .head(top_n)
     )
 
-    print("\n🎬 Genre-Based (User Input) Recommendations:\n")
+    print("\n Genre-Based (User Input) Recommendations:\n")
     print(
         recommendations[
             ["Movie_Name", "Genre", "Rating", "final_score"]
         ].reset_index(drop=True)
     )
-top_n = int(input("How many movie recommendations do you want? "))
+try:
+    top_n = int(input("How many movie recommendations do you want? "))
+except:
+    print("Invalid input. Defaulting to 10 recommendations.")
 recommend_movies_by_genre(
     moviedata=moviedata,
     tfidf=tfidf,
