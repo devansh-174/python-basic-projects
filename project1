@@ -21,7 +21,7 @@ parkinson_data = pd.read_csv('/Users/devanshbansal/Downloads/parkinsons data.csv
 
 #displaying the total number of null values in each column and checking where we have null values and cleaning is required
 print(parkinson_data.isnull().sum())
-parkinson_data= parkinson_data.drop('name', axis=1)
+parkinson_data= parkinson_data.drop(columns=["name"], errors="ignore")
 
 # Summary statistics for all numerical features
 print(parkinson_data.describe())
@@ -65,7 +65,8 @@ y = parkinson_data["status"]
 
 # Train-test split (80% train, 20% test)
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
+    X, y, test_size=0.2, random_state=42, #control randomness
+    stratify=y# to keep classification balanced in train and test sets
 )
 
 # Logistic Regression model
