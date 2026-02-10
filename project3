@@ -56,10 +56,12 @@ news_data = news_data.drop_duplicates(
 # ===============================
 # FIX LABEL ENCODING (MANDATORY)
 # ===============================
-news_data["label"] = news_data["label"].map({
-    "fake": 1,
-    "real": 0
-})
+news_data["label"] = (
+    news_data["label"]
+    .str.lower()
+    .map({"fake": 1, "real": 0})
+)
+
 
 print("Label distribution after encoding:")
 print(news_data["label"].value_counts())
@@ -130,8 +132,8 @@ X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
     test_size=0.2,
-    random_state=42,
-    stratify=y
+    random_state=42, #to ensure the data remains the same across different runs
+    stratify=y # to preserve the same proportion of fake and real news in both train and test sets
 )
 
 vectorizer = TfidfVectorizer(
@@ -164,7 +166,7 @@ print("Dummy Accuracy:",
 
 pa_model = PassiveAggressiveClassifier(
     max_iter=1000,
-    C=0.75,
+    C=0.75, # streangth of regularization
     random_state=42
 )
 
@@ -184,7 +186,7 @@ print(classification_report(y_test, pa_pred))
 
 
 def predict_fake_news(model, vectorizer):
-    print("\n📰 Fake News Detection System")
+    print("\n Fake News Detection System")
     user_text = input("Enter the news text:\n")
 
     user_text_tfidf = vectorizer.transform([user_text])
