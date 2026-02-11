@@ -9,10 +9,11 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 # ===============================
 # 1. Load Dataset
 # ===============================
-server_data = pd.read_csv('/Users/devanshbansal/Downloads/unclean_cpu_metrics.csv')
+server_data = pd.read_csv('/Users/devanshbansal/Downloads/server_cpu_dataset.csv')
 # ===============================
 # 2. Data Cleaning & Preprocessing through EDA
 # ===============================
@@ -20,21 +21,28 @@ server_data = pd.read_csv('/Users/devanshbansal/Downloads/unclean_cpu_metrics.cs
 print(server_data.isnull().sum())
 server_data = server_data.drop_duplicates()
 server_data = server_data.dropna()
-print(server_data.isnull().sum())
+print(server_data.isnull().sum())# no missing data now so no EDA needed for missing data
 
 
-# Convert numeric columns safely
+# Convert numeric columns safely 
+# creating a list named numeric_cols which contains the names of the columns as a string which are 
+# supposed to be numeric in excel 
 numeric_cols = [
     'CPU Usage (%)',
-    'CPU Temperature (°C)',
+    'Memory Usage (%)',
     'Clock Speed (GHz)',
+    'Ambient Temperature (°C)',
+    'Voltage (V)',
+    'Current Load (A)',
     'Cache Miss Rate (%)',
-    'Power Consumption (W)'
+    'Power Consumption (W)',
+    'CPU Temperature (°C)'
 ]
 
+# converting all our numeric columns to numeric using pd.to_numeric and error is set to 'coerce' so that 
+# if there are any invalid values they are converted to NaN
 for col in numeric_cols:
     server_data[col] = pd.to_numeric(server_data[col], errors='coerce')
-
 # Remove rows that had invalid values
 server_data = server_data.dropna()
 
@@ -43,20 +51,19 @@ server_data = server_data.dropna()
 # ===============================
 # -------- EDA 1: Distribution of CPU Temperature  --------
 plt.figure()
-
 plt.scatter(
     server_data['CPU Temperature (°C)'],
     server_data['CPU Usage (%)'],
-    alpha=0.4
+    alpha=0.05# to change the transparency of the points so that we can see the density of points in areas where they overlap
 )
 
 # Trend line
-z = np.polyfit(
-    server_data['CPU Temperature (°C)'],
-    server_data['CPU Usage (%)'],
-    1
+z = np.polyfit( #fits the curve to the data points
+    server_data['CPU Temperature (°C)'], #x-value independent variable
+    server_data['CPU Usage (%)'], #y-value dependent variable
+    1 # straight line degree of the polynomial
 )
-p = np.poly1d(z)
+p = np.poly1d(z) # to convert curve into a mathematical function taht we used to plot the trend line
 plt.plot(
     server_data['CPU Temperature (°C)'],
     p(server_data['CPU Temperature (°C)'])
@@ -67,7 +74,7 @@ plt.ylabel('CPU Usage (%)')
 plt.title('CPU Usage vs CPU Temperature')
 plt.show()
 
-
+# -------- EDA 2: Distribution of CPU Temperature  --------
 plt.figure()
 plt.hist(server_data['CPU Temperature (°C)'], bins=30)
 plt.xlabel('CPU Temperature (°C)')
@@ -75,12 +82,12 @@ plt.ylabel('Frequency')
 plt.title('Distribution of CPU Temperature')
 plt.show()
 
-
+# -------- EDA 3: Power Consumption vs CPU Temperature  --------
 plt.figure()
 plt.scatter(
     server_data['Power Consumption (W)'],
     server_data['CPU Temperature (°C)'],
-    alpha=0.4
+    alpha=0.05
 )
 plt.xlabel('Power Consumption (W)')
 plt.ylabel('CPU Temperature (°C)')
@@ -88,34 +95,91 @@ plt.title('Power Consumption vs CPU Temperature')
 plt.show()
 
 
+# -------- EDA 4: Voltage vs CPU Temperature  --------
+plt.figure(figsize=(8, 6))
 
+# Scatter plot
+plt.scatter(
+    server_data['Voltage (V)'],
+    server_data['CPU Temperature (°C)'],
+    alpha=0.05
+)
+
+# Trend line
+z = np.polyfit(
+    server_data['Voltage (V)'],
+    server_data['CPU Temperature (°C)'],
+    1
+)
+p = np.poly1d(z)
+
+plt.plot(
+    server_data['Voltage (V)'],
+    p(server_data['Voltage (V)'])
+)
+
+plt.xlabel('Voltage (V)')
+plt.ylabel('CPU Temperature (°C)')
+plt.title('Voltage vs CPU Temperature')
+plt.show()
+
+# -------- EDA 5: Current Load vs CPU Temperature  --------
+plt.figure(figsize=(8, 6))
+# Scatter plot
+plt.scatter(
+    server_data['Current Load (A)'],
+    server_data['CPU Temperature (°C)'],
+    alpha=0.05
+)
+# Trend line
+z = np.polyfit(
+    server_data['Current Load (A)'],
+    server_data['CPU Temperature (°C)'],
+    1
+)
+p = np.poly1d(z)
+plt.plot(
+    server_data['Current Load (A)'],
+    p(server_data['Current Load (A)'])
+)
+
+plt.xlabel('Current Load (A)')
+plt.ylabel('CPU Temperature (°C)')
+plt.title('Current Load vs CPU Temperature')
+plt.show()
 # ===============================
 # 4. Random Forest Regression
 # ===============================
 
 # -------- Feature Selection --------
 X = server_data[
-    ['CPU Usage (%)',
-     'Clock Speed (GHz)',
-     'Cache Miss Rate (%)',
-     'Power Consumption (W)']
+    [
+        'CPU Usage (%)',
+        'Memory Usage (%)',
+        'Clock Speed (GHz)',
+        'Ambient Temperature (°C)',
+        'Voltage (V)',
+        'Current Load (A)',
+        'Cache Miss Rate (%)',
+        'Power Consumption (W)',
+    ]
 ]
-
 y = server_data['CPU Temperature (°C)']
-
 # -------- Train/Test Split --------
 X_train, X_test, y_train, y_test = train_test_split(
     X, y,
     test_size=0.2,
     random_state=42
 )
-
 # -------- Model Initialization --------
 rf_model = RandomForestRegressor(
-    n_estimators=100,     # number of trees
-    random_state=42
+    n_estimators=500,   #number of trees in the forest
+    max_depth=12,       # maximum depth of the tree to prevent overfitting
+    min_samples_split=5,# minimum number of samples required to split an internal node
+    min_samples_leaf=2, # minimum number of samples required to be at a leaf node
+    max_features="sqrt", # to choose the number of features to consider when looking for the best split. "sqrt" means it will use the square root of the total number of features, which is a common choice for regression tasks.
+    random_state=42 
 )
-
 # -------- Training --------
 rf_model.fit(X_train, y_train)
 
@@ -125,10 +189,21 @@ y_pred = rf_model.predict(X_test)
 # -------- Evaluation --------
 mae = mean_absolute_error(y_test, y_pred)
 rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+r2 = r2_score(y_test, y_pred)
 
-print("Random Forest MAE:", mae)
-print("Random Forest RMSE:", rmse)
+print("Random Forest MAE:", mae) #mean absolute error 
+print("Random Forest RMSE:", rmse) #root mean squared error 
+print("Random Forest R2 Score:", r2)
 
+
+# tell us the varience of the dependent/element to be found/predicted based on the independent variables/
+# elements we are using to predict it. R2 score of 1 means perfect prediction and 0 means the model is 
+# not able to predict anything better than the mean of the target variable. Negative R2 score means the 
+# model is performing worse than a horizontal line (mean of target variable) which is a very bad sign for 
+# our model.
+
+print("Train R2:", rf_model.score(X_train, y_train))
+print("Test R2:", rf_model.score(X_test, y_test))
 # ===============================
 # 5. User Input Prediction
 # ===============================
@@ -136,25 +211,30 @@ print("Random Forest RMSE:", rmse)
 print("\nEnter system metrics to predict CPU temperature")
 
 usage = float(input("CPU Usage (%): "))
+memory = float(input("Memory Usage (%): "))
 clock = float(input("Clock Speed (GHz): "))
+ambient = float(input("Ambient Temperature (°C): "))
+voltage = float(input("Voltage (V): "))
+current = float(input("Current Load (A): "))
 cache = float(input("Cache Miss Rate (%): "))
 power = float(input("Power Consumption (W): "))
 
 # Prepare data for model
-user_input = pd.DataFrame(
-    [[usage, clock, cache, power]],
+user_input = pd.DataFrame(  # to store data in a tabular format which is required for our model to make predictions
+    [[usage, memory, clock, ambient, voltage, current, cache, power]],
     columns=[
         'CPU Usage (%)',
+        'Memory Usage (%)',
         'Clock Speed (GHz)',
+        'Ambient Temperature (°C)',
+        'Voltage (V)',
+        'Current Load (A)',
         'Cache Miss Rate (%)',
-        'Power Consumption (W)'
+        'Power Consumption (W)',
     ]
 )
-
-
 # Predict
 predicted_temp = rf_model.predict(user_input)
-
 # Show result
 print("\nPredicted CPU Temperature:",
       round(predicted_temp[0],2), "°C")
